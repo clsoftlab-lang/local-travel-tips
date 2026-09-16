@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<!--
+  SPDX-License-Identifier: Apache-2.0
+  Copyright 2026 CLSOFTLAB (씨엘소프트랩), Dr. Lee Il-guk (이일국)
+-->
+<html lang="ko" data-theme="auto">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="숨은여행지찾기 — 그 동네에 사는 로컬만 쓰는 진짜 여행 팁을 찾아보세요. (데모)" />
+  <title>숨은여행지찾기 · 로컬 인사이더 여행 팁</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ctext y='26' font-size='26'%3E%F0%9F%97%BA%EF%B8%8F%3C/text%3E%3C/svg%3E" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <a class="skip-link" href="#view">본문 바로가기</a>
+
+  <header class="app-header">
+    <div class="app-header__inner">
+      <a class="brand" href="#/browse" aria-label="숨은여행지찾기 홈">
+        <span class="brand__mark" aria-hidden="true">🗺️</span>
+        <span class="brand__name">숨은여행지찾기</span>
+      </a>
+      <nav id="nav" class="nav" aria-label="주요 메뉴">
+        <a href="#/browse" data-nav="browse">탐색</a>
+        <a href="#/write" data-nav="write">팁 작성</a>
+        <a href="#/note" data-nav="note">여행 노트</a>
+        <a href="#/ranking" data-nav="ranking">지역 랭킹</a>
+        <a href="#/about" data-nav="about">소개</a>
+      </nav>
+      <button id="theme-toggle" class="icon-btn" type="button" aria-label="라이트/다크 모드 전환" title="테마 전환">🌓</button>
+    </div>
+  </header>
+
+  <div class="demo-banner" role="note">
+    데모 모드 · 모든 데이터는 예시이며 실제 결제·인증·계정은 없습니다.
+  </div>
+
+  <main id="app">
+    <section id="view" tabindex="-1" aria-live="polite"><!-- 라우팅되는 화면이 여기에 렌더링됩니다 --></section>
+  </main>
+
+  <footer class="app-footer">
+    <p>숨은여행지찾기 데모 · Apache-2.0 · © 2026 CLSOFTLAB (씨엘소프트랩), Dr. Lee Il-guk (이일국)</p>
+    <p>Not an official Anthropic product.</p>
+  </footer>
+
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
