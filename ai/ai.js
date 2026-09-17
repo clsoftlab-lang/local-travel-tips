@@ -20,7 +20,11 @@ export const AI_TASKS = {
   itinerary: 'AI 여행 일정 생성',
   chatbot: '지역 여행 챗봇',
   tipAssist: '팁 작성 도우미',
+  digest: '지금 뜨는 로컬 추천 다이제스트',
 };
+
+// 다이제스트 기본 계절(호출 측에서 payload.season 으로 덮어씀)
+const DEFAULT_SEASON = '가을';
 
 // ---------- 공용 헬퍼 ----------
 function regionList() { const m = getMeta(); return (m && m.regions) || []; }
@@ -178,11 +182,42 @@ function kwLines(notes) {
   return notes.split('\n').map((s) => s.trim()).filter(Boolean).map((s) => `- ${s}`);
 }
 
+// 지역/계절 기준으로 "지금 뜨는" 추천을 짧게 요약(결정적, 오프라인 동작)
+function digestPool(payload = {}) {
+  const region = payload.region && payload.region !== '전체' ? payload.region : '';
+  const season = payload.season && payload.season !== '전체' ? payload.season : DEFAULT_SEASON;
+  let list = selectTips({ region });
+  const inSeason = list.filter((t) => (t.seasons || []).includes(season));
+  // 계절 팁을 앞으로, 부족하면 나머지로 보충
+  const ordered = [...inSeason, ...list.filter((t) => !inSeason.includes(t))];
+  return { region, season, list: ordered };
+}
+
+function mockDigest(payload = {}) {
+  const { region, season, list } = digestPool(payload);
+  const where = region || '전국';
+  const picks = list.slice(0, 4);
+  if (!picks.length) {
+    return `🔥 지금 뜨는 로컬 추천 다이제스트 · ${where}\n조건에 맞는 로컬 팁이 아직 없습니다. 지역/계절을 바꿔보세요.`;
+  }
+  const out = [`🔥 지금 뜨는 로컬 추천 다이제스트 · ${where} · ${season}`, ''];
+  picks.forEach((t, i) => {
+    const place = t.district ? `${t.region} ${t.district}` : t.region;
+    out.push(`${i + 1}. ${t.title} (${t.theme}·${place}) ★${t.rating}`);
+    out.push(`   ${t.summary}`);
+    if (t.locationHint) out.push(`   📌 ${t.locationHint}`);
+  });
+  out.push('');
+  out.push('※ 데모: 실제 로컬 팁 데이터로 자동 생성한 추천입니다.');
+  return out.join('\n');
+}
+
 function mockAnswer(task, payload) {
   switch (task) {
     case 'itinerary': return mockItinerary(payload);
     case 'chatbot': return mockChatbot(payload);
     case 'tipAssist': return mockTipAssist(payload);
+    case 'digest': return mockDigest(payload);
     default: return '알 수 없는 AI 작업입니다.';
   }
 }
@@ -212,43 +247,72 @@ function buildRequest(task, payload = {}) {
     themes = detectThemes(payload.question);
   } else if (task === 'tipAssist') {
     themes = payload.theme ? [payload.theme] : [];
+  } else if (task === 'digest') {
+    // 지역/계절 기준 근거 팁(계절 매칭 우선)
+    const d = digestPool(payload);
+    return { task, payload, grounding: groundingTips(d.list) };
   }
   const pool = selectTips({ region: region && region !== '전체' ? region : '', themes });
   return { task, payload, grounding: groundingTips(pool) };
 }
 
+// mock 으로 안전 폴백(무인: 앱이 절대 멈추지 않음)
+async function fallbackToMock(task, payload, onToken) {
+  const text = mockAnswer(task, payload);
+  await streamMock(text, onToken);
+  return text;
+}
+
 // ---------- 공개 API ----------
 export async function askAI(task, payload = {}, { onToken } = {}) {
   // 데모 기본값: 백엔드 없이 결정적 mock
-  if (!AI_ENDPOINT) {
-    const text = mockAnswer(task, payload);
-    await streamMock(text, onToken);
-    return text;
+  if (!AI_ENDPOINT) return fallbackToMock(task, payload, onToken);
+
+  // 실 연동: 백엔드 프록시로 POST 후 텍스트 스트림 수신.
+  // 실패/429{fallback:true}/네트워크 오류 시 → 자동으로 mock 으로 폴백(무인).
+  let res;
+  try {
+    res = await fetch(AI_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(buildRequest(task, payload)),
+    });
+  } catch {
+    return fallbackToMock(task, payload, onToken); // 네트워크 오류
   }
 
-  // 실 연동: 백엔드 프록시로 POST 후 텍스트 스트림 수신
-  const res = await fetch(AI_ENDPOINT, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(buildRequest(task, payload)),
-  });
-  if (!res.ok) throw new Error(`AI 백엔드 오류 (${res.status})`);
+  // 429(예산/레이트) 또는 기타 오류 → mock 폴백
+  if (res.status === 429 || !res.ok) return fallbackToMock(task, payload, onToken);
+
+  // 논스트림 응답(예: Cloudflare Worker) 처리
   if (!res.body || typeof res.body.getReader !== 'function') {
-    const text = await res.text();
+    let text = '';
+    try { text = await res.text(); } catch { return fallbackToMock(task, payload, onToken); }
+    // 서버가 JSON {fallback:true} 를 200 으로 줄 가능성 방어
+    if (/^\s*\{\s*"fallback"\s*:\s*true\s*\}\s*$/.test(text)) {
+      return fallbackToMock(task, payload, onToken);
+    }
     if (onToken && text) onToken(text);
     return text;
   }
+
+  // 스트림 응답 처리
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
   let full = '';
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    const chunk = decoder.decode(value, { stream: true });
-    if (chunk) { full += chunk; if (onToken) onToken(chunk); }
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const chunk = decoder.decode(value, { stream: true });
+      if (chunk) { full += chunk; if (onToken) onToken(chunk); }
+    }
+    const tail = decoder.decode();
+    if (tail) { full += tail; if (onToken) onToken(tail); }
+  } catch {
+    // 스트림 중단: 아직 아무것도 못 받았으면 mock 으로 폴백
+    if (!full) return fallbackToMock(task, payload, onToken);
   }
-  const tail = decoder.decode();
-  if (tail) { full += tail; if (onToken) onToken(tail); }
   return full;
 }
 

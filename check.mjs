@@ -82,7 +82,7 @@ try {
 
 // 5) AI 레이어 / 백엔드 파일 존재 + node --check
 console.log('[5] AI/서버 파일 검사 (node --check ai/ + server/)');
-const aiRequired = ['ai/config.js', 'ai/ai.js', 'server/index.mjs', 'server/package.json'];
+const aiRequired = ['ai/config.js', 'ai/ai.js', 'server/index.mjs', 'server/worker.js', 'server/wrangler.toml', 'server/package.json'];
 for (const rel of aiRequired) {
   try { statSync(join(root, rel)); ok(`존재: ${rel}`); }
   catch { bad(`누락: ${rel}`); }
@@ -128,6 +128,15 @@ for (const f of collectText(root)) {
   if (KEY_RE.test(content)) { bad(`실제 키 형식 발견: ${f.replace(root, '')}`); keyHits++; }
 }
 if (!keyHits) ok('실제 API 키 형식 없음');
+
+// 8) .gitignore 가 .env 를 제외하는지 (키/시크릿 커밋 방지)
+console.log('[8] .gitignore 의 .env 제외 검사');
+try {
+  const gi = readFileSync(join(root, '.gitignore'), 'utf8');
+  const lines = gi.split(/\r?\n/).map((s) => s.trim());
+  if (lines.includes('.env')) ok('.gitignore 가 .env 를 제외함');
+  else bad('.gitignore 에 .env 항목이 없음');
+} catch (e) { bad(`.gitignore 읽기 실패: ${e.message}`); }
 
 console.log('');
 if (failures) { console.error(`검증 실패: ${failures}건`); process.exit(1); }

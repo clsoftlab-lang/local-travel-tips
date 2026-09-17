@@ -1,0 +1,15 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 CLSOFTLAB (씨엘소프트랩), Dr. Lee Il-guk (이일국)
+#
+# Cloudflare Workers 배포 설정 (무인·무료 호스팅).
+# 키는 코드/리포지토리가 아니라 Worker secret 으로만 넣습니다:
+#   wrangler secret put ANTHROPIC_API_KEY
+
+name = "local-travel-tips-ai"
+main = "worker.js"
+compatibility_date = "2025-01-01"
+
+# 모델/효율 조정용(선택). 키는 절대 여기 두지 마세요 — secret 으로만.
+[vars]
+AI_MODEL = "claude-haiku-4-5"
+# AI_EFFORT = "low"   # sonnet/opus 로 올릴 때만 의미가 있습니다.

@@ -74,6 +74,11 @@ main#app { max-width: var(--maxw); margin: 0 auto; padding: 16px; }
 .hero--sm { padding: 12px 4px; }
 .hero--sm h1 { font-size: clamp(1.3rem, 3.5vw, 1.8rem); }
 
+/* 자동 다이제스트(무인) */
+.digest { margin: 4px 2px 8px; }
+.digest__title { font-size: 1.05rem; margin: 6px 0 8px; }
+.digest__out { margin-top: 0; min-height: 2.4em; }
+
 /* 필터 */
 .filters { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; margin: 12px 0; box-shadow: var(--shadow); }
 .filters__row { display: grid; grid-template-columns: 1fr; gap: 10px; }

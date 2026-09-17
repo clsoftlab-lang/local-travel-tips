@@ -82,6 +82,10 @@ export function browseView() {
     <h1>동네 사람이 알려주는 <em>진짜</em> 여행지</h1>
     <p>그 지역에 사는 로컬만 팁을 씁니다. 관광 책자에 없는 숨은 장소를 찾아보세요.</p>
   </section>
+  <section class="digest" aria-label="지금 뜨는 로컬 추천 다이제스트">
+    <h2 class="digest__title">🔥 지금 뜨는 로컬 추천 다이제스트 <small class="muted">(자동 생성)</small></h2>
+    <pre class="ai-out digest__out" id="home-digest" aria-live="polite">추천을 불러오는 중…</pre>
+  </section>
   <section class="filters" aria-label="필터">
     <div class="filters__row">
       <input id="f-q" class="search" type="search" placeholder="장소·지역·키워드 검색" value="${esc(filters.q)}" aria-label="검색" />
@@ -104,6 +108,25 @@ export function mountBrowse() {
     if (el) el.addEventListener('change', (e) => { filters[key] = e.target.value; rerenderGrid(); });
   };
   bind('f-region', 'region'); bind('f-season', 'season'); bind('f-sort', 'sort');
+  runHomeDigest(); // 무인: 화면 로드 시 자동 다이제스트(askAI, 오프라인=mock)
+}
+
+// 지역/계절 기준 "지금 뜨는" 추천을 화면 로드 시 자동 생성.
+// askAI 를 쓰므로 백엔드가 있으면 실 Claude, 없으면 mock 으로 동작(무인·오프라인).
+async function runHomeDigest() {
+  const out = document.getElementById('home-digest');
+  if (!out || out.dataset.done) return;
+  out.dataset.done = '1';
+  out.textContent = '';
+  out.classList.add('is-loading');
+  const season = filters.season !== '전체' ? filters.season : SEASON_NOW;
+  try {
+    await askAI('digest', { region: filters.region, season }, { onToken: (c) => { out.textContent += c; } });
+  } catch {
+    out.textContent = '지금은 추천을 불러오지 못했습니다. 아래에서 직접 둘러보세요.';
+  } finally {
+    out.classList.remove('is-loading');
+  }
 }
 
 // 그리드만 다시 그려 검색 입력 포커스를 유지

@@ -79,7 +79,9 @@ js/ui.js            escape / format / toast / badges
 js/views.js         browse / detail / write / note / ranking / ai / about
 ai/config.js        AI_ENDPOINT ("" = demo mock, no backend, no key)
 ai/ai.js            askAI() — deterministic Korean mock or backend stream
-server/index.mjs    optional Claude backend proxy (keys server-side only)
+server/index.mjs    optional Claude backend proxy (cost caps + caching; keys server-side only)
+server/worker.js    Cloudflare Workers variant (free, unmanned deploy)
+server/wrangler.toml  Workers deploy config (key via `wrangler secret`)
 data/tips.json      45 seed tips across 17 regions
 data/meta.json      regions / themes / seasons
 check.mjs           static verification (used by CI)
@@ -90,16 +92,25 @@ check.mjs           static verification (used by CI)
 The app ships three AI features — **AI itinerary generator**, **regional travel chatbot**, and **tip-writing helper** — reachable from the **AI 도우미** menu.
 
 - **Demo = mock (default).** With `ai/config.js` set to `export const AI_ENDPOINT = "";`, the app runs a **deterministic Korean MockProvider** that builds answers from the app's own local-tips data. No backend, **no API key**, fully offline.
-- **Enable real Claude (opt-in).** Run the backend proxy in [`server/`](./server/): copy `.env.example` → `.env`, set `ANTHROPIC_API_KEY` (model `claude-opus-5`), `npm install`, `npm start`. Then point the frontend at it:
+- **Enable real Claude (opt-in).** Run the backend proxy in [`server/`](./server/): copy `.env.example` → `.env`, set `ANTHROPIC_API_KEY`, `npm install`, `npm start`. Then point the frontend at it:
 
   ```js
   // ai/config.js
   export const AI_ENDPOINT = "http://localhost:8790/api/ai";
   ```
 
-  The frontend POSTs `{task, payload, grounding}` (grounding = real tip data) and streams the response; the server calls `client.messages.stream({ model: "claude-opus-5", max_tokens: 2048, thinking: { type: "adaptive" }, ... })`.
+  The frontend POSTs `{task, payload, grounding}` (grounding = real tip data) and streams the response; the server calls `client.messages.stream({ model, max_tokens, system, messages })` with a cost-first default model (`claude-haiku-4-5`, configurable via `AI_MODEL`), prompt caching and per-task output caps (see below).
 
 - **BOLD RULE: API keys are server-side only.** The key lives only in the backend's `ANTHROPIC_API_KEY` environment variable — **never in the browser and never in the repository.** `check.mjs` fails the build if a real key format (`sk-ant-…`) appears anywhere in the repo, and asserts `AI_ENDPOINT` is empty.
+
+## ⚙️ 고도화 — 무인·저비용 실 AI 연동
+
+The AI backend is tuned for **cost, autonomy, and never breaking**:
+
+- **Cost model.** Default model is **`claude-haiku-4-5`** (~**$1 / MTok input, $5 / MTok output**), raise to `claude-sonnet-5` / `claude-opus-5` via `AI_MODEL` when you want more quality. **Prompt caching** (`cache_control: ephemeral`) keeps the stable per-task system prompt cheap on repeat calls, per-task **output caps** (~700 tokens) bound output cost, and a **monthly token budget** (`AI_MONTHLY_TOKEN_CAP`, default 2,000,000) plus a **per-IP rate limit** (20/min) protect you from surprise bills — over budget returns `HTTP 429 {fallback:true}`.
+- **Rough estimate.** With grounded tips (~1.7K input) + a short answer (~0.5K output) per call, Haiku 4.5 runs about **$3–5 per 1,000 requests** (caching lowers it further as traffic repeats).
+- **Free one-deploy (Cloudflare Workers).** [`server/worker.js`](./server/worker.js) + [`server/wrangler.toml`](./server/wrangler.toml) run the same task routing / model / caching rules on the **free tier — no server to babysit (무인)**: `wrangler secret put ANTHROPIC_API_KEY` then `wrangler deploy`.
+- **Autonomous mock-fallback.** If the endpoint fails, returns `429 {fallback:true}`, or the network is down, `ai/ai.js` **auto-falls back to the offline mock**, so the app keeps working unmanned. The home screen also auto-generates a **"지금 뜨는 로컬 추천 다이제스트"** (by region/season) via `askAI` on load — real Claude when the backend is on, deterministic mock when it is off.
 
 ## Contributors
 

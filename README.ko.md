@@ -67,16 +67,25 @@ npx --yes serve .
 **AI 도우미** 메뉴에서 세 가지 AI 기능을 쓸 수 있습니다 — **AI 여행 일정 생성**, **지역 여행 챗봇**, **팁 작성 도우미**.
 
 - **데모 = Mock (기본값).** `ai/config.js` 가 `export const AI_ENDPOINT = "";` 이면, 앱은 앱의 로컬 팁 데이터를 재사용하는 **결정적 한국어 MockProvider** 로 동작합니다. 백엔드도, **API 키도 필요 없고**, 완전히 오프라인입니다.
-- **실제 Claude 켜기 (opt-in).** [`server/`](./server/) 백엔드 프록시를 실행하세요: `.env.example` → `.env` 복사 후 `ANTHROPIC_API_KEY` 설정(모델 `claude-opus-5`), `npm install`, `npm start`. 그런 다음 프런트엔드를 연결합니다:
+- **실제 Claude 켜기 (opt-in).** [`server/`](./server/) 백엔드 프록시를 실행하세요: `.env.example` → `.env` 복사 후 `ANTHROPIC_API_KEY` 설정, `npm install`, `npm start`. 그런 다음 프런트엔드를 연결합니다:
 
   ```js
   // ai/config.js
   export const AI_ENDPOINT = "http://localhost:8790/api/ai";
   ```
 
-  프런트엔드는 `{task, payload, grounding}`(grounding = 실제 팁 데이터)을 POST 하고 응답을 스트리밍으로 받습니다. 서버는 `client.messages.stream({ model: "claude-opus-5", max_tokens: 2048, thinking: { type: "adaptive" }, ... })` 로 호출합니다.
+  프런트엔드는 `{task, payload, grounding}`(grounding = 실제 팁 데이터)을 POST 하고 응답을 스트리밍으로 받습니다. 서버는 비용 우선 기본 모델(`claude-haiku-4-5`, `AI_MODEL` 로 변경 가능)과 prompt caching, 태스크별 출력 상한으로 `client.messages.stream({ model, max_tokens, system, messages })` 를 호출합니다(아래 참고).
 
 - **굵게 강조: API 키는 오직 서버 사이드에서만.** 키는 백엔드의 `ANTHROPIC_API_KEY` 환경변수에만 존재하며, **브라우저와 리포지토리에는 절대 두지 않습니다.** `check.mjs` 는 실제 키 형식(`sk-ant-…`)이 리포지토리 어디에라도 있으면 빌드를 실패시키고, `AI_ENDPOINT` 가 비어 있는지도 확인합니다.
+
+## ⚙️ 고도화 — 무인·저비용 실 AI 연동
+
+AI 백엔드는 **비용·무인·절대 안 멈춤**에 맞춰 튜닝되어 있습니다.
+
+- **비용 모델.** 기본 모델은 **`claude-haiku-4-5`**(약 **$1 / MTok 입력, $5 / MTok 출력**)이며, 품질이 필요하면 `AI_MODEL` 로 `claude-sonnet-5` / `claude-opus-5` 상향. **Prompt caching**(`cache_control: ephemeral`)으로 태스크 공통 시스템 지시를 반복 호출 시 싸게 재사용하고, 태스크별 **출력 상한**(~700 토큰)으로 출력 비용을 묶고, **월간 토큰 예산**(`AI_MONTHLY_TOKEN_CAP`, 기본 2,000,000) + **IP 당 분당 20회 제한**으로 요금 폭탄을 막습니다 — 예산 초과 시 `HTTP 429 {fallback:true}`.
+- **대략 견적.** 근거 팁(입력 ~1.7K) + 짧은 답변(출력 ~0.5K)을 가정하면 Haiku 4.5 기준 **1,000 요청당 약 $3~5**(캐시가 적중할수록 더 저렴).
+- **무료 원-디플로이(Cloudflare Workers).** [`server/worker.js`](./server/worker.js) + [`server/wrangler.toml`](./server/wrangler.toml) 가 동일한 task 라우팅 / 모델 / 캐싱 규칙으로 **무료 티어 — 관리할 서버 없음(무인)** 에서 동작합니다: `wrangler secret put ANTHROPIC_API_KEY` 후 `wrangler deploy`.
+- **무인 mock 폴백.** 엔드포인트 실패·`429 {fallback:true}`·네트워크 오류 시 `ai/ai.js` 가 **오프라인 mock 으로 자동 폴백**하여 앱이 무인으로도 멈추지 않습니다. 홈 화면은 로드 시 `askAI` 로 **"지금 뜨는 로컬 추천 다이제스트"**(지역/계절 기준)를 자동 생성합니다 — 백엔드가 켜져 있으면 실 Claude, 꺼져 있으면 결정적 mock.
 
 ## 기여자
 
