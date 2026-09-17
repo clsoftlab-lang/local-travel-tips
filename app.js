@@ -10,6 +10,7 @@ import {
   browseView, mountBrowse, rerenderGrid, filters,
   detailView, writeView, mountWrite,
   noteView, rankingView, mountRanking, aboutView,
+  aiView, mountAI,
 } from './js/views.js';
 
 const view = () => document.getElementById('view');
@@ -43,6 +44,8 @@ function render() {
         el.innerHTML = noteView(); setActiveNav('note'); break;
       case 'ranking':
         el.innerHTML = rankingView(); setActiveNav('ranking'); mountRanking(navigate); break;
+      case 'ai':
+        el.innerHTML = aiView(); setActiveNav('ai'); mountAI(); break;
       case 'about':
         el.innerHTML = aboutView(); setActiveNav('about'); break;
       default:

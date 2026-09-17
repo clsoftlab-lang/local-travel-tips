@@ -30,6 +30,7 @@ English: [README.md](./README.md)
 - **팁 작성** 폼 → `localStorage` 저장(신규 팁은 "검증 대기" 상태로 시작)
 - **찜/좋아요**, 그리고 구매·찜·직접 작성 팁을 모은 **여행 노트**
 - **부가 기능**: 지역 랭킹, 계절 추천, 모의 신고/검증 요청 흐름
+- **🤖 AI 도우미**: 여행 일정 생성 · 지역 챗봇 · 팁 작성 도우미 (데모는 로컬 Mock, 실제 Claude 는 백엔드로 opt-in)
 - 모바일 우선 반응형 UI, **라이트 + 다크** 테마, 한국어 UI, 빌드 없음
 
 ## 로컬 실행
@@ -60,6 +61,22 @@ npx --yes serve .
 - 데이터는 `data/*.json`; 상태는 `localStorage`에 저장(메모리 폴백 + try/catch)
 - 사진은 테마/시드별로 생성하는 **인라인 SVG** — 바이너리 자원 없음
 - CI: `node check.mjs` (JSON 파싱, 전체 JS `node --check`, HTML 필수 컨테이너)
+
+## 🤖 AI 기능 (API 연동)
+
+**AI 도우미** 메뉴에서 세 가지 AI 기능을 쓸 수 있습니다 — **AI 여행 일정 생성**, **지역 여행 챗봇**, **팁 작성 도우미**.
+
+- **데모 = Mock (기본값).** `ai/config.js` 가 `export const AI_ENDPOINT = "";` 이면, 앱은 앱의 로컬 팁 데이터를 재사용하는 **결정적 한국어 MockProvider** 로 동작합니다. 백엔드도, **API 키도 필요 없고**, 완전히 오프라인입니다.
+- **실제 Claude 켜기 (opt-in).** [`server/`](./server/) 백엔드 프록시를 실행하세요: `.env.example` → `.env` 복사 후 `ANTHROPIC_API_KEY` 설정(모델 `claude-opus-5`), `npm install`, `npm start`. 그런 다음 프런트엔드를 연결합니다:
+
+  ```js
+  // ai/config.js
+  export const AI_ENDPOINT = "http://localhost:8790/api/ai";
+  ```
+
+  프런트엔드는 `{task, payload, grounding}`(grounding = 실제 팁 데이터)을 POST 하고 응답을 스트리밍으로 받습니다. 서버는 `client.messages.stream({ model: "claude-opus-5", max_tokens: 2048, thinking: { type: "adaptive" }, ... })` 로 호출합니다.
+
+- **굵게 강조: API 키는 오직 서버 사이드에서만.** 키는 백엔드의 `ANTHROPIC_API_KEY` 환경변수에만 존재하며, **브라우저와 리포지토리에는 절대 두지 않습니다.** `check.mjs` 는 실제 키 형식(`sk-ant-…`)이 리포지토리 어디에라도 있으면 빌드를 실패시키고, `AI_ENDPOINT` 가 비어 있는지도 확인합니다.
 
 ## 기여자
 

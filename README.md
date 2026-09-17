@@ -32,6 +32,7 @@ sponsored noise.
 - **Write a tip** form → saved to `localStorage` (new tips start as "verification pending").
 - **Bookmark / like**, and a **Travel Note** collecting purchased, bookmarked and self-authored tips.
 - **Extras**: region ranking, seasonal recommendations, and a mock report / verification-request flow.
+- **🤖 AI assistant** (itinerary generator, regional chatbot, tip-writing helper) — demo runs on a local mock; real Claude is opt-in via a backend proxy.
 - Responsive mobile-first UI, **light + dark** themes, Korean UI, zero build step.
 
 ## Run locally
@@ -75,11 +76,30 @@ js/storage.js       localStorage wrapper (try/catch + reset)
 js/data.js          JSON loading + authored-tip merge
 js/svg.js           inline-SVG scenery generator
 js/ui.js            escape / format / toast / badges
-js/views.js         browse / detail / write / note / ranking / about
+js/views.js         browse / detail / write / note / ranking / ai / about
+ai/config.js        AI_ENDPOINT ("" = demo mock, no backend, no key)
+ai/ai.js            askAI() — deterministic Korean mock or backend stream
+server/index.mjs    optional Claude backend proxy (keys server-side only)
 data/tips.json      45 seed tips across 17 regions
 data/meta.json      regions / themes / seasons
 check.mjs           static verification (used by CI)
 ```
+
+## 🤖 AI 기능 (API 연동)
+
+The app ships three AI features — **AI itinerary generator**, **regional travel chatbot**, and **tip-writing helper** — reachable from the **AI 도우미** menu.
+
+- **Demo = mock (default).** With `ai/config.js` set to `export const AI_ENDPOINT = "";`, the app runs a **deterministic Korean MockProvider** that builds answers from the app's own local-tips data. No backend, **no API key**, fully offline.
+- **Enable real Claude (opt-in).** Run the backend proxy in [`server/`](./server/): copy `.env.example` → `.env`, set `ANTHROPIC_API_KEY` (model `claude-opus-5`), `npm install`, `npm start`. Then point the frontend at it:
+
+  ```js
+  // ai/config.js
+  export const AI_ENDPOINT = "http://localhost:8790/api/ai";
+  ```
+
+  The frontend POSTs `{task, payload, grounding}` (grounding = real tip data) and streams the response; the server calls `client.messages.stream({ model: "claude-opus-5", max_tokens: 2048, thinking: { type: "adaptive" }, ... })`.
+
+- **BOLD RULE: API keys are server-side only.** The key lives only in the backend's `ANTHROPIC_API_KEY` environment variable — **never in the browser and never in the repository.** `check.mjs` fails the build if a real key format (`sk-ant-…`) appears anywhere in the repo, and asserts `AI_ENDPOINT` is empty.
 
 ## Contributors
 

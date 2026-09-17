@@ -182,6 +182,16 @@ main#app { max-width: var(--maxw); margin: 0 auto; padding: 16px; }
 .muted { color: var(--muted); }
 .small { font-size: 13px; }
 
+/* AI 도우미 */
+.ai-mode { margin: 4px 2px 14px; font-size: 14px; }
+.ai-panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px 16px; margin: 0 0 16px; box-shadow: var(--shadow); }
+.ai-panel .note-h { margin-top: 4px; }
+.ai-panel .form { border: none; box-shadow: none; padding: 0; margin-top: 10px; background: transparent; }
+.ai-panel .form textarea { resize: vertical; }
+.ai-out { white-space: pre-wrap; word-break: break-word; background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; margin: 14px 0 0; min-height: 3.2em; font: inherit; font-size: 14px; line-height: 1.65; color: var(--text); }
+.ai-out.is-loading::after { content: "▍"; animation: ai-blink 1s steps(2) infinite; color: var(--brand); }
+@keyframes ai-blink { 50% { opacity: 0; } }
+
 /* 토스트 */
 .toast { position: fixed; left: 50%; bottom: 24px; transform: translate(-50%, 20px); background: var(--text); color: var(--bg); padding: 12px 18px; border-radius: 999px; font-weight: 700; font-size: 14px; box-shadow: 0 6px 24px rgba(0,0,0,0.28); opacity: 0; transition: opacity .25s, transform .25s; z-index: 30; max-width: 92vw; text-align: center; }
 .toast--show { opacity: 1; transform: translate(-50%, 0); }

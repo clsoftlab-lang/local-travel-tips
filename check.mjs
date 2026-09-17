@@ -80,6 +80,55 @@ try {
   }
 } catch (e) { bad(`index.html 읽기 실패: ${e.message}`); }
 
+// 5) AI 레이어 / 백엔드 파일 존재 + node --check
+console.log('[5] AI/서버 파일 검사 (node --check ai/ + server/)');
+const aiRequired = ['ai/config.js', 'ai/ai.js', 'server/index.mjs', 'server/package.json'];
+for (const rel of aiRequired) {
+  try { statSync(join(root, rel)); ok(`존재: ${rel}`); }
+  catch { bad(`누락: ${rel}`); }
+}
+for (const dir of ['ai', 'server']) {
+  let files = [];
+  try { files = collectJS(join(root, dir)); } catch { bad(`${dir}/ 디렉터리 없음`); continue; }
+  for (const f of files) {
+    try { execFileSync(process.execPath, ['--check', f], { stdio: 'pipe' }); ok(`${f.replace(root, '')} 문법 OK`); }
+    catch (e) { bad(`${f.replace(root, '')} 문법 오류: ${(e.stderr || e.stdout || e.message).toString().split('\n')[0]}`); }
+  }
+}
+
+// 6) AI_ENDPOINT 는 리포지토리에서 반드시 빈 문자열(데모=mock, 브라우저에 키 없음)
+console.log('[6] ai/config.js 의 AI_ENDPOINT 검사');
+try {
+  const cfg = readFileSync(join(root, 'ai/config.js'), 'utf8');
+  const m = cfg.match(/export\s+const\s+AI_ENDPOINT\s*=\s*(["'])(.*?)\1/);
+  if (!m) bad('AI_ENDPOINT export 를 찾지 못함');
+  else if (m[2] === '') ok('AI_ENDPOINT 가 빈 문자열(데모=mock)');
+  else bad(`AI_ENDPOINT 가 비어있지 않음: "${m[2]}" (커밋 전 "" 로 되돌리세요)`);
+} catch (e) { bad(`ai/config.js 읽기 실패: ${e.message}`); }
+
+// 7) 실제 API 키 형식 스캔 (키가 리포지토리에 절대 없도록)
+console.log('[7] 실제 API 키 형식 스캔');
+// 검사기 소스가 스스로 매치되지 않도록 문자열을 분리해 정규식을 구성합니다.
+const KEY_RE = new RegExp("sk-" + "ant-[A-Za-z0-9_-]{20,}");
+function collectText(dir) {
+  const out = [];
+  for (const name of readdirSync(dir)) {
+    if (name === 'node_modules' || name === '.git' || name === '.env') continue;
+    const p = join(dir, name);
+    const st = statSync(p);
+    if (st.isDirectory()) out.push(...collectText(p));
+    else if (!['.png', '.jpg', '.jpeg', '.gif', '.ico', '.woff', '.woff2', '.ttf'].includes(extname(name))) out.push(p);
+  }
+  return out;
+}
+let keyHits = 0;
+for (const f of collectText(root)) {
+  let content = '';
+  try { content = readFileSync(f, 'utf8'); } catch { continue; }
+  if (KEY_RE.test(content)) { bad(`실제 키 형식 발견: ${f.replace(root, '')}`); keyHits++; }
+}
+if (!keyHits) ok('실제 API 키 형식 없음');
+
 console.log('');
 if (failures) { console.error(`검증 실패: ${failures}건`); process.exit(1); }
 console.log('모든 검증 통과 ✔');

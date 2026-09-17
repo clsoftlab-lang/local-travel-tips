@@ -1,0 +1,17 @@
+{
+  "name": "local-travel-tips-ai-proxy",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "숨은여행지찾기 AI 백엔드 프록시 (Claude via @anthropic-ai/sdk). API 키는 서버에서만 사용합니다.",
+  "license": "Apache-2.0",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "node index.mjs"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.70.0"
+  }
+}

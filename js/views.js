@@ -8,6 +8,7 @@ import { allTips, getMeta, findTip, regionStats } from './data.js';
 import { store } from './storage.js';
 import { sceneSVG } from './svg.js';
 import { esc, won, stars, localBadge, verifiedBadge, themeChip, toast } from './ui.js';
+import { askAI, aiMode } from '../ai/ai.js';
 
 // 탐색 필터 상태(모듈 스코프)
 export const filters = { region: '전체', theme: '전체', price: '전체', season: '전체', q: '', sort: '추천순' };
@@ -309,6 +310,99 @@ export function mountRanking(navigate) {
       filters.region = a.dataset.region;
       navigate('#/browse');
     });
+  });
+}
+
+// ---------- AI 도우미 ----------
+export function aiView() {
+  const meta = getMeta();
+  const o = (v) => `<option value="${esc(v)}">${esc(v)}</option>`;
+  const modeLabel = aiMode() === 'backend' ? '실시간 Claude(백엔드 연동)' : '데모 Mock(로컬 팁 기반, 오프라인)';
+  const interestChecks = meta.themes.map((th) =>
+    `<label class="inline"><input type="checkbox" name="ai-interest" value="${esc(th)}" /> ${esc(th)}</label>`).join('');
+
+  return `
+  <section class="hero hero--sm"><h1>AI 여행 도우미</h1>
+    <p>로컬 팁 데이터를 근거로 일정·질문·팁 작성을 도와드립니다.</p>
+  </section>
+  <p class="ai-mode">현재 모드: <b>${esc(modeLabel)}</b> · <span class="muted small">실제 AI 연동은 <code>ai/config.js</code> + <code>server/</code> 로 켤 수 있습니다(키는 서버에서만).</span></p>
+
+  <section class="ai-panel">
+    <h2 class="note-h">🗺️ AI 여행 일정 생성</h2>
+    <div class="form">
+      <div class="form__row">
+        <label>지역 <select id="ai-it-region" class="select">${['전체', ...meta.regions].map(o).join('')}</select></label>
+        <label>일수 <select id="ai-it-days" class="select">${['1', '2', '3', '4', '5'].map(o).join('')}</select></label>
+      </div>
+      <fieldset class="seasons"><legend>관심사(테마)</legend>${interestChecks}</fieldset>
+      <button class="btn btn--primary" id="ai-it-run" type="button">일정 만들기</button>
+    </div>
+    <pre class="ai-out" id="ai-it-out" aria-live="polite">여기에 AI 일정이 표시됩니다.</pre>
+  </section>
+
+  <section class="ai-panel">
+    <h2 class="note-h">💬 지역 여행 챗봇</h2>
+    <div class="form">
+      <label>질문 <input id="ai-chat-q" class="search" type="text" placeholder='예: 부산에서 뭐 하면 좋아요?' /></label>
+      <button class="btn btn--primary" id="ai-chat-run" type="button">물어보기</button>
+    </div>
+    <pre class="ai-out" id="ai-chat-out" aria-live="polite">여기에 답변이 표시됩니다.</pre>
+  </section>
+
+  <section class="ai-panel">
+    <h2 class="note-h">✍️ 팁 작성 도우미</h2>
+    <div class="form">
+      <div class="form__row">
+        <label>지역 <select id="ai-tip-region" class="select">${meta.regions.map(o).join('')}</select></label>
+        <label>테마 <select id="ai-tip-theme" class="select">${meta.themes.map(o).join('')}</select></label>
+      </div>
+      <label>메모(자유롭게) <textarea id="ai-tip-notes" rows="4" placeholder="예: 새벽에 조용함, OO역 근처, 사진 명당"></textarea></label>
+      <button class="btn btn--primary" id="ai-tip-run" type="button">팁 다듬기</button>
+    </div>
+    <pre class="ai-out" id="ai-tip-out" aria-live="polite">여기에 작성 도움말이 표시됩니다.</pre>
+  </section>`;
+}
+
+export function mountAI() {
+  const runInto = async (outId, btn, task, payloadFn) => {
+    const out = document.getElementById(outId);
+    if (!out || !btn) return;
+    if (btn.disabled) return;
+    btn.disabled = true;
+    out.textContent = '';
+    out.classList.add('is-loading');
+    try {
+      await askAI(task, payloadFn(), { onToken: (chunk) => { out.textContent += chunk; } });
+    } catch (err) {
+      out.textContent = 'AI 요청 중 오류가 발생했습니다: ' + String(err && err.message || err);
+      toast('AI 요청에 실패했습니다');
+    } finally {
+      out.classList.remove('is-loading');
+      btn.disabled = false;
+    }
+  };
+
+  const bind = (id, fn) => { const el = document.getElementById(id); if (el) el.addEventListener('click', fn); };
+
+  bind('ai-it-run', (e) => runInto('ai-it-out', e.currentTarget, 'itinerary', () => ({
+    region: (document.getElementById('ai-it-region') || {}).value || '전체',
+    days: Number((document.getElementById('ai-it-days') || {}).value) || 2,
+    interests: [...document.querySelectorAll('input[name="ai-interest"]:checked')].map((c) => c.value),
+  })));
+
+  bind('ai-chat-run', (e) => runInto('ai-chat-out', e.currentTarget, 'chatbot', () => ({
+    question: (document.getElementById('ai-chat-q') || {}).value || '',
+  })));
+
+  bind('ai-tip-run', (e) => runInto('ai-tip-out', e.currentTarget, 'tipAssist', () => ({
+    region: (document.getElementById('ai-tip-region') || {}).value || '',
+    theme: (document.getElementById('ai-tip-theme') || {}).value || '',
+    notes: (document.getElementById('ai-tip-notes') || {}).value || '',
+  })));
+
+  const chatInput = document.getElementById('ai-chat-q');
+  if (chatInput) chatInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); const b = document.getElementById('ai-chat-run'); if (b) b.click(); }
   });
 }
 

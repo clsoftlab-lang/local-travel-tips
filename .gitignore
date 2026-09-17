@@ -16,3 +16,9 @@ Thumbs.db
 dist/
 .cache/
 .tmp/
+
+# Secrets — never commit real API keys (keys stay server-side only)
+.env
+.env.local
+.env.*.local
+server/.env
